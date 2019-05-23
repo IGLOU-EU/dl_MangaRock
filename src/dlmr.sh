@@ -75,7 +75,7 @@ config_check()
     [[ -e $outPut ]] && err "\"$outPut\" already exist (use -h for help)"
     mkdir -p "$outPut" || err "mkdir fail to create \"$outPut\""
 
-    mkdir -p "$outPut/epub" "$outPut/tmp"
+    mkdir -p "$outPut/cbx" "$outPut/tmp"
 }
 
 build_output()
@@ -137,10 +137,81 @@ get_datas()
 
 proceed_pages()
 {
-    echo "$1"
-    echo "$2"
-    echo "$3"
-    echo "$PWD"
+    local _i
+    local _cbz
+    local _out
+    local _pout
+    local _cover
+
+    _cbz="$outPut/cbx/${mangaInfo['title']} ${2}.cbz"
+    _out="$outPut/tmp/$1"
+    mkdir -p "$_out"
+
+    for page in $3; do
+        ((i++))
+        _pout="$_out/$(printf "%04d\n" ${i})_${2// /_}"
+        [[ -z $_cover ]] && _cover="$(printf "%04d\n" ${i})_${2// /_}"
+
+        curl "$page" -o "$_pout.mri"
+        $mri_convert "$_pout.mri" "$_pout.png"
+        7z a -tzip "$_cbz" "$_pout.png" -mx0
+        rm "$_pout.mri" "$_pout.png"
+    done
+
+    build_xml "$2" "$_i" "$_cover" "$_out"
+    7z a -tzip "$_cbz" "$_out/*" -mx0
+
+    rm -rf "$_out"
+}
+
+build_xml()
+{
+    echo "
+        <?xml version="1.1" encoding="UTF-8"?>
+        <comet
+          xmlns:comet="http://www.denvog.com/comet/"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://www.denvog.com http://www.denvog.com/comet/comet.xsd">
+            <title>${mangaInfo['title']} ${1}</title>
+            <description>${mangaInfo['description']}</description>
+            <series>${mangaInfo['title']}</series>
+            <language>en</language>
+            <pages>${2}</pages>
+            <creator>${mangaInfo['author']}</creator>
+            <coverImage>${3}</coverImage>
+        </comet>
+    " > "${4}/CoMet.xml"
+
+    echo "
+        <?xml version="1.0" encoding="UTF-8"?>
+        <ComicInfo
+          xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <Title>${mangaInfo['title']} ${1}</Title>
+            <Summary>${mangaInfo['description']}</Summary>
+            <Series>${mangaInfo['title']}</Series>
+            <LanguageISO>en</LanguageISO>
+            <PageCount>${2}</PageCount>
+            <Writer>${mangaInfo['author']}</Writer>
+        </ComicInfo>
+    " > "${4}/ComicInfo.xml"
+
+    echo "
+        <?xml version='1.0' encoding='utf-8'?>
+        <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uuid_id" version="2.0">
+            <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+                <dc:title>${mangaInfo['title']} ${1}</dc:title>
+                <dc:creator opf:file-as="${mangaInfo['author']}" opf:role="aut">${mangaInfo['author']}</dc:creator>
+                <dc:description>${mangaInfo['description']}</dc:description>
+                <dc:language>en</dc:language>
+                <meta content="${mangaInfo['title']}" name="calibre:series"/>
+                <meta content="${mangaInfo['title']} ${1}" name="calibre:title_sort"/>
+            </metadata>
+            <guide>
+                <reference href="${3}" title="Couverture" type="cover"/>
+            </guide>
+        </package>
+    " > "${4}/metadata.opf"
 }
 
 clean_output()
@@ -153,6 +224,7 @@ declare -A mangaInfo
 declare -A jsonRequest
 PWD=${0%/*}
 dep_soft="7z curl jq rm mkdir"
+mri_convert="$PWD/mri_convert.bin"
 
 fork=4
 mrUrl=""
