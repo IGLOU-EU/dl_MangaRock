@@ -36,7 +36,7 @@ function parsing_args()
                 ;;
             "--fork")
                 shift
-                fork="$4"
+                fork="$1"
                 ;;
             "--only-vol")
                 shift
@@ -72,9 +72,7 @@ config_check()
     [[ -z $mrUrl ]] && err "no mangarock url given (use -h for help)"
     [[ -z $outPut ]] && err "no outPut given (use -h for help)"
 
-    [[ -e $outPut ]] && err "\"$outPut\" already exist (use -h for help)"
     mkdir -p "$outPut" || err "mkdir fail to create \"$outPut\""
-
     mkdir -p "$outPut/cbx" "$outPut/tmp"
 }
 
@@ -94,12 +92,13 @@ get_datas()
 
     _jsonFile="$outPut/$_manga.json"
 
-    curl   'https://api.mangarockhd.com/query/web401/manga_detail' \
+    curl -s -S --retry 5 --retry-delay 10   'https://api.mangarockhd.com/query/web401/manga_detail' \
         -H 'Content-Type: application/json' \
         -d '{"oids":{"'"$_manga"'":0},"sections":["basic_info","chapters"]}' \
-        -o "$_jsonFile"
+        -o "$_jsonFile" || err "can't get datas from https://api.mangarockhd.com"
 
-    # check curl
+    jq '' "$_jsonFile" > "/dev/null" || err "Cant't parsing json file \"$_jsonFile\""
+    echo "OK - Json data get to \"$_jsonFile\""
 
     jsonRequest=(
         ['title']=".data.\"${_manga}\".basic_info.name"
@@ -123,14 +122,19 @@ get_datas()
     )
 
     while read -r oid; do
-        _buffer="$(curl "https://api.mangarockhd.com/query/web401/pagesv2?oid=$oid" | jq -r '.data' | jq -r '.[].url')"
+        _buffer="$(curl -s -S --retry 5 --retry-delay 10 "https://api.mangarockhd.com/query/web401/pagesv2?oid=$oid" \
+        | jq -r '.data' | jq -r '.[].url')" || { echo "Error: Can't get \"$oid\" json file, abort this chapter"; continue; }
+        echo "OK - Json for chapter \"$oid\" successfully recovered"
 
         proceed_pages \
             "$oid" \
             "$(echo "${mangaInfo['chapters']}" | jq -r ".[] | select(.oid==\"$oid\")" | jq -r '.name')" \
-            "$_buffer"
+            "$_buffer" &
 
-        exit
+        pids[$i]="$!"
+        ((it++))
+
+        [[ $it -ge $fork ]] && wait_fork
     done < <(echo "${mangaInfo['chapters']}" | jq -r '.[].oid')
 
 }
@@ -143,25 +147,32 @@ proceed_pages()
     local _pout
     local _cover
 
-    _cbz="$outPut/cbx/${mangaInfo['title']} ${2}.cbz"
     _out="$outPut/tmp/$1"
     mkdir -p "$_out"
+
+    _cbz="$outPut/cbx/${mangaInfo['title']}"
+    mkdir -p "$_cbz"
+    _cbz="$_cbz/${mangaInfo['title']} ${2}.cbz"
+
+    sleep 5
 
     for page in $3; do
         ((i++))
         _pout="$_out/$(printf "%04d\n" ${i})_${2// /_}"
         [[ -z $_cover ]] && _cover="$(printf "%04d\n" ${i})_${2// /_}"
 
-        curl "$page" -o "$_pout.mri"
+        curl -s -S --retry 5 --retry-delay 10 "$page" -o "$_pout.mri"
+        [[ -e "$_pout.mri" ]] || { echo "Error: can't get \"$_pout.mri\" from \"${mangaInfo['title']} ${1}\", abort this chapter"; return; }
+
         $mri_convert "$_pout.mri" "$_pout.png"
-        7z a -tzip "$_cbz" "$_pout.png" -mx0
-        rm "$_pout.mri" "$_pout.png"
+        rm "$_pout.mri"
     done
 
     build_xml "$2" "$_i" "$_cover" "$_out"
-    7z a -tzip "$_cbz" "$_out/*" -mx0
+    7z -bd a -tzip "$_cbz" "$_out/*" -mx0 > "/dev/null"
 
     rm -rf "$_out"
+    echo "OK - Builded at \"$_cbz\""
 }
 
 build_xml()
@@ -214,19 +225,25 @@ build_xml()
     " > "${4}/metadata.opf"
 }
 
-clean_output()
-{
-    echo '';
+wait_fork () {
+    for pid in "${pids[@]}"; do
+        wait $pid
+    done
+
+    it=0
 }
 
 # VARS
 declare -A mangaInfo
 declare -A jsonRequest
+
+it=0
+pids=()
 PWD=${0%/*}
 dep_soft="7z curl jq rm mkdir"
 mri_convert="$PWD/mri_convert.bin"
 
-fork=4
+fork=1
 mrUrl=""
 outPut=""
 onlyVol=""
@@ -238,6 +255,5 @@ config_check
 
 get_datas
 build_output
-clean_output
 
 quit
