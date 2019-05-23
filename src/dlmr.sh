@@ -167,11 +167,11 @@ proceed_pages()
 build_xml()
 {
     echo "
-        <?xml version="1.1" encoding="UTF-8"?>
+        <?xml version=\"1.1\" encoding=\"UTF-8\"?>
         <comet
-          xmlns:comet="http://www.denvog.com/comet/"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://www.denvog.com http://www.denvog.com/comet/comet.xsd">
+          xmlns:comet=\"http://www.denvog.com/comet/\"
+          xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"
+          xsi:schemaLocation=\"http://www.denvog.com http://www.denvog.com/comet/comet.xsd\">
             <title>${mangaInfo['title']} ${1}</title>
             <description>${mangaInfo['description']}</description>
             <series>${mangaInfo['title']}</series>
@@ -183,10 +183,10 @@ build_xml()
     " > "${4}/CoMet.xml"
 
     echo "
-        <?xml version="1.0" encoding="UTF-8"?>
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>
         <ComicInfo
-          xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"
+          xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">
             <Title>${mangaInfo['title']} ${1}</Title>
             <Summary>${mangaInfo['description']}</Summary>
             <Series>${mangaInfo['title']}</Series>
@@ -198,17 +198,17 @@ build_xml()
 
     echo "
         <?xml version='1.0' encoding='utf-8'?>
-        <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="uuid_id" version="2.0">
-            <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+        <package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"uuid_id\" version=\"2.0\">
+            <metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:opf=\"http://www.idpf.org/2007/opf\">
                 <dc:title>${mangaInfo['title']} ${1}</dc:title>
-                <dc:creator opf:file-as="${mangaInfo['author']}" opf:role="aut">${mangaInfo['author']}</dc:creator>
+                <dc:creator opf:file-as=\"${mangaInfo['author']}\" opf:role=\"aut\">${mangaInfo['author']}</dc:creator>
                 <dc:description>${mangaInfo['description']}</dc:description>
                 <dc:language>en</dc:language>
-                <meta content="${mangaInfo['title']}" name="calibre:series"/>
-                <meta content="${mangaInfo['title']} ${1}" name="calibre:title_sort"/>
+                <meta content=\"${mangaInfo['title']}\" name=\"calibre:series\"/>
+                <meta content=\"${mangaInfo['title']} ${1}\" name=\"calibre:title_sort\"/>
             </metadata>
             <guide>
-                <reference href="${3}" title="Couverture" type="cover"/>
+                <reference href=\"${3}\" title=\"Couverture\" type=\"cover\"/>
             </guide>
         </package>
     " > "${4}/metadata.opf"
