@@ -17,6 +17,12 @@ quit()
 help()
 {
     echo "usage : dlmr.sh [OPTION]... --url \"<mangarock url>\" --out <path>
+
+    --url   mangarock url, give serie url (ex: https://mangarock.com/manga/mrs-serie-183717)
+
+    --out   output directory, can exist or not
+
+    --fork  number of forking (parallelised rendering)
     "
 }
 
