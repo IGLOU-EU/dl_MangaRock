@@ -16,7 +16,7 @@ quit()
 
 help()
 {
-    echo "usage : dlmr.sh [OPTION]... --url <mangarock url> --out <path>
+    echo "usage : dlmr.sh [OPTION]... --url \"<mangarock url>\" --out <path>
     "
 }
 
@@ -74,6 +74,8 @@ config_check()
 
     [[ -e $outPut ]] && err "\"$outPut\" already exist (use -h for help)"
     mkdir -p "$outPut" || err "mkdir fail to create \"$outPut\""
+
+    mkdir -p "$outPut/epub" "$outPut/tmp"
 }
 
 build_output()
@@ -83,7 +85,62 @@ build_output()
 
 get_datas()
 {
-    echo '';
+    local _manga
+    local _buffer
+    local _jsonFile
+
+    _manga="${mrUrl#*manga/}"
+    _manga="${_manga%%/*}"
+
+    _jsonFile="$outPut/$_manga.json"
+
+    curl   'https://api.mangarockhd.com/query/web401/manga_detail' \
+        -H 'Content-Type: application/json' \
+        -d '{"oids":{"'"$_manga"'":0},"sections":["basic_info","chapters"]}' \
+        -o "$_jsonFile"
+
+    # check curl
+
+    jsonRequest=(
+        ['title']=".data.\"${_manga}\".basic_info.name"
+        ['author']=".data.\"${_manga}\".basic_info.author"
+        ['completed']=".data.\"${_manga}\".basic_info.completed"
+        ['description']=".data.\"${_manga}\".basic_info.description"
+        ['last_updated']=".data.\"${_manga}\".default.last_updated"
+        ['total_chapters']=".data.\"${_manga}\".basic_info.total_chapters"
+        ['chapters']=".data.\"${_manga}\".chapters.chapters"
+    )
+
+    mangaInfo=(
+        ['oid']="$_manga"
+        ['title']="$(jq -r "${jsonRequest['title']}" "$_jsonFile")"
+        ['author']="$(jq -r "${jsonRequest['author']}" "$_jsonFile")"
+        ['completed']="$(jq -r "${jsonRequest['completed']}" "$_jsonFile")"
+        ['description']="$(jq -r "${jsonRequest['description']}" "$_jsonFile")"
+        ['last_updated']="$(jq -r "${jsonRequest['last_updated']}" "$_jsonFile")"
+        ['total_chapters']="$(jq -r "${jsonRequest['total_chapters']}" "$_jsonFile")"
+        ['chapters']="$(jq -r "${jsonRequest['chapters']}" "$_jsonFile")"
+    )
+
+    while read -r oid; do
+        _buffer="$(curl "https://api.mangarockhd.com/query/web401/pagesv2?oid=$oid" | jq -r '.data' | jq -r '.[].url')"
+
+        proceed_pages \
+            "$oid" \
+            "$(echo "${mangaInfo['chapters']}" | jq -r ".[] | select(.oid==\"$oid\")" | jq -r '.name')" \
+            "$_buffer"
+
+        exit
+    done < <(echo "${mangaInfo['chapters']}" | jq -r '.[].oid')
+
+}
+
+proceed_pages()
+{
+    echo "$1"
+    echo "$2"
+    echo "$3"
+    echo "$PWD"
 }
 
 clean_output()
@@ -92,6 +149,9 @@ clean_output()
 }
 
 # VARS
+declare -A mangaInfo
+declare -A jsonRequest
+PWD=${0%/*}
 dep_soft="7z curl jq rm mkdir"
 
 fork=4
